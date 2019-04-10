@@ -4,6 +4,7 @@ import h5py
 import keras.backend as K
 from keras import metrics
 from time import time
+import matplotlib.pyplot as plt
 
 from tensorboard_logging import Logger
 
@@ -11,7 +12,8 @@ class ValidCallBack(keras.callbacks.Callback):
 
 	def __init__(self):
 		super(ValidCallBack, self).__init__()
-		
+		self.top1acc=[]
+		self.top3acc=[]
 		# h5py file containing validation features and validation word embeddings
 		self.F 			= h5py.File("./processed_features/validation_features.h5", "r")
 		self.val_features= self.F["data/features"]
@@ -81,13 +83,33 @@ class ValidCallBack(keras.callbacks.Callback):
 
 		top_1_acc = round(top_1_acc/len(accuracy_list), 3)
 		top_3_acc = round(top_3_acc/len(accuracy_list), 3)
+		self.top1acc.append(top_1_acc)
+		self.top3acc.append(top_3_acc)
 
-		print "top 1: {} | top 3: {} ".format(top_1_acc, top_3_acc)
+		print " top 1: {} | top 3: {} ".format(top_1_acc, top_3_acc)
 
-		print epoch
 		self.mylogger.log_scalar("top1", float(top_1_acc), epoch)
 		self.mylogger.log_scalar("top3", float(top_3_acc), epoch)
 	
+	def on_train_end(self,logs={}):
+		plt.figure(2)
+		plt.subplot(211)  
+		plt.plot(self.top1acc)  
+		# plt.plot(history.history['val_acc'])  
+		plt.title('top1 accuracy')  
+		plt.ylabel('accuracy')  
+		plt.xlabel('epoch')  
+
+		plt.subplot(212)  
+		plt.plot(self.top3acc)  
+		# plt.plot(history.history['val_acc'])  
+		plt.title('top3 accuracy')  
+		plt.ylabel('accuracy')  
+		plt.xlabel('epoch')  
+		# plt.show()  
+		plt.savefig('plots/top1-top3.png')
+
+
 	def custom_for_keras(self, ALL_word_embeds):
 		## only the top 20 rows from word_vectors is legit!
 		def top_accuracy(true_word_indices, image_vectors):

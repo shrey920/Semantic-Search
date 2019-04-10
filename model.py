@@ -47,7 +47,6 @@ class EpochCheckpoint(keras.callbacks.Callback):
 	def on_epoch_end(self, epoch, logs={}):
 		print "Saving model..."
 		self.model.save(os.path.join(self.folder+"epoch_"+str(epoch)+".hdf5"))
-		print(logs)
 
 
 def get_num_train_images():
@@ -132,67 +131,48 @@ def build_model(image_features, word_features=None):
 	image_vector = linear_transformation(image_features)
 
 	mymodel = Model(inputs=image_features, outputs=image_vector)
-	mymodel.compile(optimizer="adam", loss=hinge_rank_loss, metrics=['accuracy'])
+	mymodel.compile(optimizer="adam", loss=hinge_rank_loss)
 	return mymodel
 
 def main():
-	RUN_TIME = sys.argv[1]
 
+	image_features = Input(shape=(4096,))
+	model = build_model(image_features)
+	print model.summary()
 
-	if RUN_TIME == "TRAIN":
-		image_features = Input(shape=(4096,))
-		model = build_model(image_features)
-		print model.summary()
+	# number of training images 
+	_num_train = get_num_train_images()
 
-		# number of training images 
-		_num_train = get_num_train_images()
+	# Callbacks 
+	# remote_cb = RemoteMonitor(root='http://localhost:9000')
+	tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
+	epoch_cb    = EpochCheckpoint(folder="./epochs/")
+	valid_cb	= ValidCallBack()
 
-		# Callbacks 
-		# remote_cb = RemoteMonitor(root='http://localhost:9000')
-		tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
-		epoch_cb    = EpochCheckpoint(folder="./temp/")
-		valid_cb	= ValidCallBack()
+	# fit generator
+	steps_per_epoch = math.ceil(_num_train/float(BATCH))
+	print "Steps per epoch i.e number of iterations: ",steps_per_epoch
+	
+	train_datagen = data_generator(batch_size=INCORRECT_BATCH, image_class_ranges=TRAINING_CLASS_RANGES)
+	history = model.fit_generator(
+			train_datagen,
+			steps_per_epoch=steps_per_epoch,
+			epochs=250,
+			callbacks=[tensorboard, valid_cb, epoch_cb]
+		)
+	print history.history.keys()
+	plt.figure(1)  
+	# summarize history for loss  
+	
+	plt.plot(history.history['loss'])  
+	# plt.plot(history.history['val_loss'])  
+	plt.title('model loss')  
+	plt.ylabel('loss')  
+	plt.xlabel('epoch')  
+	plt.legend(['train', 'test'], loc='upper left')  
+	plt.show() 
+	plt.savefig('plots/loss.png') 
 
-		# fit generator
-		steps_per_epoch = math.ceil(_num_train/float(BATCH))
-		print "Steps per epoch i.e number of iterations: ",steps_per_epoch
-		
-		train_datagen = data_generator(batch_size=INCORRECT_BATCH, image_class_ranges=TRAINING_CLASS_RANGES)
-		history = model.fit_generator(
-				train_datagen,
-				steps_per_epoch=steps_per_epoch,
-				epochs=250,
-				callbacks=[tensorboard, valid_cb, epoch_cb]
-			)
-		print history.history.keys
-		plt.figure(1)  
-		
-		# summarize history for accuracy  
-		
-		plt.subplot(211)  
-		plt.plot(history.history['acc'])  
-		# plt.plot(history.history['val_acc'])  
-		plt.title('model accuracy')  
-		plt.ylabel('accuracy')  
-		plt.xlabel('epoch')  
-		plt.legend(['train', 'test'], loc='upper left')  
-		
-		# summarize history for loss  
-		
-		plt.subplot(212)  
-		plt.plot(history.history['loss'])  
-		# plt.plot(history.history['val_loss'])  
-		plt.title('model loss')  
-		plt.ylabel('loss')  
-		plt.xlabel('epoch')  
-		plt.legend(['train', 'test'], loc='upper left')  
-		plt.show()  
-
-
-
-	elif RUN_TIME == "TEST":
-		from keras.models import load_model 
-		model = load_model("snapshots/epoch_49.hdf5", custom_objects={"hinge_rank_loss":hinge_rank_loss})
 
 	K.clear_session()
 
